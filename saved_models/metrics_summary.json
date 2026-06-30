@@ -1,0 +1,12 @@
+[
+  {
+    "model_name": "Logistic Regression",
+    "f1_fraud": 0.11063306699446834,
+    "roc_auc": 0.9712055545347008
+  },
+  {
+    "model_name": "Random Forest (Tuned)",
+    "f1_fraud": 0.7477477477477478,
+    "roc_auc": 0.98054057371401
+  }
+]

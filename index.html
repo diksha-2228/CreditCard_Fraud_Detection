@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Credit Card Fraud Detection Pipeline</title>
+  
+  <!-- Google Fonts: Outfit and Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom CSS stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Chart.js via CDN for metrics comparison -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  
+  <!-- Background glow effects -->
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-main">
+        <div class="logo-area">
+          <div class="shield-icon">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <h1 id="app-title">Credit Card Fraud Detection</h1>
+            <p class="subtitle">Supervised Learning Pipeline &mdash; Logistic Regression vs. Random Forest (SMOTE-Balanced)</p>
+          </div>
+        </div>
+        <div class="system-status">
+          <span class="status-indicator online"></span>
+          <span class="status-text" id="status-label">Pipeline: Active</span>
+        </div>
+      </div>
+      
+      <!-- GLOBAL CONTROLS BAR -->
+      <div class="global-controls">
+        <div class="control-group">
+          <label for="global-model-selector" class="control-label">
+            <i class="fa-solid fa-microchip"></i> Active Classifier
+          </label>
+          <select id="global-model-selector" class="custom-select">
+            <option value="random_forest" selected>Random Forest (Tuned) - Recommended</option>
+            <option value="logistic_regression">Logistic Regression (Baseline)</option>
+          </select>
+        </div>
+        
+        <div class="control-group threshold-group">
+          <div class="threshold-header">
+            <label for="global-threshold" class="control-label">
+              <i class="fa-solid fa-sliders"></i> Decision Threshold: <span id="threshold-val">0.50</span>
+            </label>
+            <span class="threshold-description" id="threshold-hint">Moderate fraud detection</span>
+          </div>
+          <input type="range" id="global-threshold" min="0.05" max="0.95" step="0.05" value="0.50" class="custom-range">
+          <div class="threshold-ticks">
+            <span>Catch More Fraud (Sensitive)</span>
+            <span>Default</span>
+            <span>Reduce False Alarms (Strict)</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN PANELS LAYOUT -->
+    <div class="panels-grid">
+      
+      <!-- LEFT COLUMN: SINGLE CHECK & BATCH UPLOAD -->
+      <div class="left-column">
+        
+        <!-- SINGLE TRANSACTION CHECK -->
+        <section class="card single-predict-card" id="single-panel">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-receipt"></i> Single Transaction Check</h2>
+            <span class="card-caption">Inference for individual transaction records</span>
+          </div>
+          <div class="card-body">
+            
+            <form id="single-predict-form" class="transaction-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-time">Time (Seconds since first txn)</label>
+                  <input type="number" id="input-time" min="0" value="0" step="1" required class="form-input">
+                </div>
+                <div class="form-group">
+                  <label for="input-amount">Amount (EUR &euro;)</label>
+                  <input type="number" id="input-amount" min="0" value="100.00" step="0.01" required class="form-input">
+                </div>
+              </div>
+
+              <!-- COLLAPSIBLE PCA FEATURES -->
+              <div class="collapsible-section">
+                <button type="button" class="collapse-trigger" id="pca-toggle">
+                  <span><i class="fa-solid fa-chart-line"></i> PCA Anonymized Features (V1 - V28)</span>
+                  <i class="fa-solid fa-chevron-down chevron"></i>
+                </button>
+                <div class="collapse-content" id="pca-content">
+                  <p class="pca-tip">These are raw features from PCA transformation. Neutral value is 0.0.</p>
+                  <div class="pca-grid" id="pca-inputs-container">
+                    <!-- Javascript will generate inputs here to keep HTML clean -->
+                  </div>
+                  <div class="pca-actions">
+                    <button type="button" class="btn btn-secondary btn-xs" id="btn-reset-pca">Reset all to 0.0</button>
+                    <button type="button" class="btn btn-secondary btn-xs" id="btn-randomize-pca">Randomize values</button>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" id="btn-predict-single">
+                <i class="fa-solid fa-shield-heart"></i> Analyze Transaction
+              </button>
+            </form>
+
+            <!-- SINGLE PREDICT RESULT -->
+            <div class="prediction-result-box hidden" id="single-result-box">
+              <div class="result-badge-container">
+                <div class="result-badge" id="result-badge">
+                  <i class="fa-solid" id="result-badge-icon"></i>
+                  <span id="result-badge-text">LEGITIMATE</span>
+                </div>
+              </div>
+              <div class="result-details">
+                <div class="result-metric">
+                  <span class="metric-label">Fraud Probability</span>
+                  <span class="metric-value" id="result-prob-val">0.00%</span>
+                </div>
+                <div class="progress-bar-container">
+                  <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="result-progress-fill"></div>
+                  </div>
+                  <div class="progress-bar-markers">
+                    <span style="left: 0%">0%</span>
+                    <span id="threshold-marker" style="left: 50%">T</span>
+                    <span style="left: 100%">100%</span>
+                  </div>
+                </div>
+                <div class="result-footer-text">
+                  Analyzed using <strong id="result-model-used">Random Forest</strong> at threshold <strong id="result-threshold-used">0.50</strong>.
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- BATCH CSV UPLOAD -->
+        <section class="card batch-predict-card" id="batch-panel">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-file-csv"></i> Batch Transaction Analysis</h2>
+            <span class="card-caption">Upload CSV file for bulk transaction predictions</span>
+          </div>
+          <div class="card-body">
+            <p class="panel-desc">
+              Upload a credit card transactions CSV. The file must contain headers and columns matching: 
+              <code>Time</code>, <code>V1</code> to <code>V28</code>, and <code>Amount</code>.
+            </p>
+            
+            <div class="upload-zone" id="upload-zone">
+              <input type="file" id="batch-file-input" accept=".csv" class="file-hidden-input">
+              <div class="upload-inner">
+                <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                <h3>Drag and drop CSV here</h3>
+                <p>or click to browse files</p>
+              </div>
+            </div>
+            
+            <div class="upload-file-details hidden" id="upload-file-details">
+              <div class="file-info">
+                <i class="fa-solid fa-file-code file-icon"></i>
+                <div>
+                  <h4 id="file-name-label">filename.csv</h4>
+                  <span id="file-size-label">12 KB</span>
+                </div>
+              </div>
+              <button type="button" class="btn-clear-file" id="btn-clear-file" title="Remove file">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="batch-actions">
+              <button type="button" class="btn btn-primary" id="btn-analyze-batch" disabled>
+                <i class="fa-solid fa-radar"></i> Run Batch Diagnostics
+              </button>
+            </div>
+
+            <!-- BATCH RESULTS DISPLAY -->
+            <div class="batch-results-container hidden" id="batch-results-area">
+              <div class="batch-summary-stats">
+                <div class="stat-card">
+                  <span class="stat-num" id="stat-total-processed">0</span>
+                  <span class="stat-label">Total Rows</span>
+                </div>
+                <div class="stat-card fraud-stat">
+                  <span class="stat-num" id="stat-flagged-fraud">0</span>
+                  <span class="stat-label">Flagged Fraud</span>
+                </div>
+                <div class="stat-card safe-stat">
+                  <span class="stat-num" id="stat-flagged-safe">0</span>
+                  <span class="stat-label">Legitimate</span>
+                </div>
+                <div class="stat-card rate-stat">
+                  <span class="stat-num" id="stat-fraud-rate">0.00%</span>
+                  <span class="stat-label">Fraud Rate</span>
+                </div>
+              </div>
+
+              <!-- TABLE CONTROLS -->
+              <div class="table-toolbar">
+                <h3>Prediction Preview (Top <span id="table-limit-label">100</span> items)</h3>
+                <button type="button" class="btn btn-success btn-sm" id="btn-download-results">
+                  <i class="fa-solid fa-file-arrow-down"></i> Download Full CSV Results
+                </button>
+              </div>
+
+              <!-- RESULTS TABLE -->
+              <div class="table-responsive">
+                <table class="results-table" id="results-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Amount</th>
+                      <th>Fraud Prob.</th>
+                      <th>Class Status</th>
+                      <th>Key PCA Drivers</th>
+                    </tr>
+                  </thead>
+                  <tbody id="results-table-body">
+                    <!-- JS generated rows -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- PAGINATION -->
+              <div class="table-pagination">
+                <button type="button" class="btn btn-xs btn-secondary" id="btn-prev-page" disabled>Prev</button>
+                <span class="pagination-info" id="pagination-info-label">Page 1 of 1</span>
+                <button type="button" class="btn btn-xs btn-secondary" id="btn-next-page" disabled>Next</button>
+              </div>
+
+            </div>
+
+          </div>
+        </section>
+        
+      </div>
+
+      <!-- RIGHT COLUMN: PERFORMANCE METRICS -->
+      <div class="right-column">
+        
+        <!-- MODEL PERFORMANCE METRICS -->
+        <section class="card metrics-card" id="performance-panel">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-chart-simple"></i> Classifier Performance</h2>
+            <span class="card-caption">Test set evaluation metrics from training pipeline</span>
+          </div>
+          <div class="card-body">
+            
+            <div class="table-responsive">
+              <table class="metrics-table" id="metrics-table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th class="text-right">F1 Score (Fraud)</th>
+                    <th class="text-right">ROC-AUC</th>
+                  </tr>
+                </thead>
+                <tbody id="metrics-table-body">
+                  <!-- Loaded from API -->
+                  <tr>
+                    <td colspan="3" class="text-center text-muted">Fetching pipeline metrics...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- CHART JS ELEMENT -->
+            <div class="chart-container">
+              <canvas id="metricsChart"></canvas>
+            </div>
+
+            <!-- CAPTION SECTION -->
+            <div class="metrics-explanation">
+              <h3><i class="fa-solid fa-circle-info"></i> Performance Insights</h3>
+              <p>
+                The **Random Forest (Tuned)** model is the clear winner for production use. In evaluation:
+              </p>
+              <ul>
+                <li>It captures <strong>83 out of 98</strong> actual fraud cases.</li>
+                <li>It triggers only <strong>41 false alarms</strong>, yielding a robust <strong>0.7477 F1 score</strong>.</li>
+                <li>The baseline **Logistic Regression** catches 90 frauds but creates <strong>1,439 false alarms</strong>, making it unworkable in practice due to the massive cost of investigation.</li>
+              </ul>
+              
+              <div class="warning-alert-box">
+                <div class="alert-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div class="alert-content">
+                  <strong>Why accuracy is not reported:</strong> 
+                  Predicting "Legitimate" for all transactions yields <strong>99.83% accuracy</strong> due to severe class imbalance (0.17% fraud rate). High accuracy is a false indicator of success here; we optimize strictly for F1 Score and Precision-Recall.
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+        
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- Custom Javascript -->
+  <script src="app.js"></script>
+</body>
+</html>
